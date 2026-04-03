@@ -138,7 +138,7 @@ These are the cases that flow to Tier 2.
 
 **Training data construction (using existing pipeline):**
 
-1. **Weakly labeled pool:** Take the output of `build_classification_dataset.py` — rows where Tier 1 keyword rules fired. Map old labels to new labels: PERSISTENCE→PERSIST, AUTHORITY→RECOMMEND, RECOMMENDATION→RECOMMEND, CITATION→CITE, SUMMARY→SUMMARIZE.
+1. **Weakly labeled pool:** Take the output of `build_classification_dataset.py` — rows where Tier 1 keyword rules fired. Map old labels to new labels: PERSISTENCE→PERSIST, AUTHORITY→RECOMMEND, RECOMMENDATION→RECOMMEND, CITATION→CITE, SUMMARY→SUMMARIZE. The merger of AUTHORITY and RECOMMENDATION into RECOMMEND assumes semantic equivalence — this should be spot-checked during Phase 1 by reviewing a sample of AUTHORITY-labeled rows to confirm they are functionally recommendations.
 2. **LLM-relabeled pool:** Take the output of `relabel_negatives_with_llm.py` — rows where Tier 1 found no labels but the LLM assigned labels based on semantic understanding.
 3. **True negatives:** Rows where both Tier 1 and the LLM agree on no labels.
 
@@ -167,7 +167,7 @@ The existing `assemble_training_dataset.py` already produces train/val/test spli
 - During inference: only for rows where Tier 2 confidence is in the uncertain zone AND the row has features suggesting it may be interesting (e.g., IoC keyword hits, multi-platform source URL, source domain in Tranco top-10K).
 - For periodic validation: random stratified sample of 500–1000 rows per crawl, fully labeled by the LLM, compared against Tier 1 + Tier 2 outputs to track classifier drift.
 
-**Cost control:** At $0.1–0.5 per 1 M input tokens (typical for DeepSeek-chat), labeling 5K rows costs <$0.10. Even labeling the full 2 M rows would cost ~$50. Cost is not a binding constraint for this research pipeline.
+**Cost control:** At roughly $0.1–0.5 per 1 M input tokens (approximate mid-2025 pricing for DeepSeek-chat; output tokens add ~50% on top), labeling 5K rows costs well under $1. Even labeling the full 2 M rows would be on the order of $50–100 total. Cost is not a binding constraint for this research pipeline.
 
 ---
 
@@ -254,6 +254,7 @@ Large shifts that are not explainable by real-world changes (e.g., a new platfor
 
 ### Phase 2: Build gold standard + train Tier 2
 
+- Construct the human-annotated gold standard (Section 4.1): draw stratified sample, run dual-annotator labeling, resolve disagreements. This is a prerequisite for all subsequent evaluation.
 - Use `build_classification_dataset.py` to construct the training pool.
 - Use `relabel_negatives_with_llm.py` to label the unlabeled candidate pool (update the LLM prompt to use the new 4-label taxonomy).
 - Assemble train/val/test using `assemble_training_dataset.py`.
