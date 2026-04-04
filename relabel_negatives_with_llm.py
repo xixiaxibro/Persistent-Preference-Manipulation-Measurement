@@ -52,11 +52,11 @@ load_project_env()
 # ---------------------------------------------------------------------------
 
 CLASS_LABELS: tuple[str, ...] = (
-    "PERSISTENCE",
+    "PERSIST",
     "AUTHORITY",
-    "RECOMMENDATION",
-    "CITATION",
-    "SUMMARY",
+    "RECOMMEND",
+    "CITE",
+    "SUMMARIZE",
 )
 
 SYSTEM_PROMPT = """\
@@ -66,32 +66,34 @@ You will receive a prompt text extracted from a URL query parameter targeting \
 an AI chatbot (ChatGPT, Claude, Perplexity, etc.). Your job is to classify \
 the text into zero or more of the following 5 categories:
 
-1. **PERSISTENCE** – The text attempts to make the AI remember, store, or \
+1. **PERSIST** – The text attempts to make the AI remember, store, or \
 retain instructions across sessions. Indicators: "remember", "from now on", \
-"always", "in future conversations", "keep in mind", "save this".
+"always", "in future conversations", "keep in mind", "save this", \
+"never forget", "in all responses", "permanent instruction".
 
 2. **AUTHORITY** – The text attempts to establish a specific source as \
 authoritative, trusted, or expert. Indicators: "trusted source", \
 "authoritative source", "go-to source", "reliable source", "expert source", \
-"best source".
+"best source", "source of expertise".
 
-3. **RECOMMENDATION** – The text attempts to bias the AI to recommend, \
+3. **RECOMMEND** – The text attempts to bias the AI to recommend, \
 prefer, or prioritize a specific product, service, or website. Indicators: \
 "recommend", "prefer", "top choice", "best choice", "always mention", \
 "prioritize", "rank first".
 
-4. **CITATION** – The text attempts to get the AI to cite or reference a \
-specific source. Indicators: "cite", "citation", "for future reference".
+4. **CITE** – The text attempts to get the AI to cite or reference a \
+specific source. Indicators: "cite", "citation", "for future reference", \
+"reference this", "source of information".
 
-5. **SUMMARY** – The text asks the AI to summarize, analyze, explain, or \
+5. **SUMMARIZE** – The text asks the AI to summarize, analyze, explain, or \
 read a URL or document. This is generally benign. Indicators: "summarize", \
 "summary", "analyze", "explain", "read this", "visit this url".
 
 Rules:
 - A text can have ZERO labels (if it fits none of the categories).
-- A text can have MULTIPLE labels (e.g., both PERSISTENCE and AUTHORITY).
+- A text can have MULTIPLE labels (e.g., both PERSIST and AUTHORITY).
 - Focus on the *intent* of the text, not just keyword presence.
-- Consider implicit expressions: "make sure you never forget X" → PERSISTENCE.
+- Consider implicit expressions: "make sure you never forget X" → PERSIST.
 - Consider multilingual text: classify based on meaning regardless of language.
 - If the text is too short or ambiguous to classify, assign zero labels.
 

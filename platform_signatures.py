@@ -144,7 +144,7 @@ PLATFORM_SIGNATURES: tuple[PlatformSignature, ...] = (
     ),
 )
 
-PERSISTENCE_KEYWORDS: tuple[str, ...] = (
+PERSIST_KEYWORDS: tuple[str, ...] = (
     "remember",
     "memory",
     "in future conversations",
@@ -154,22 +154,18 @@ PERSISTENCE_KEYWORDS: tuple[str, ...] = (
     "keep in mind",
     "save this",
     "store this",
+    "never forget",
+    "in all responses",
+    "permanent instruction",
 )
 
-AUTHORITY_KEYWORDS: tuple[str, ...] = (
-    "trusted source",
-    "authoritative source",
-    "go-to source",
-    "reliable source",
-    "citation source",
-    "source of expertise",
-    "expert source",
-    "best source",
+PERSIST_REGEX = re.compile(
+    r"\b(from now on|in (all|every|future) (conversations?|sessions?|responses?))\b",
+    re.IGNORECASE,
 )
 
-RECOMMENDATION_KEYWORDS: tuple[str, ...] = (
+RECOMMEND_KEYWORDS: tuple[str, ...] = (
     "recommend",
-    "recommend first",
     "prefer",
     "top choice",
     "best choice",
@@ -178,20 +174,52 @@ RECOMMENDATION_KEYWORDS: tuple[str, ...] = (
     "rank first",
 )
 
-CITATION_KEYWORDS: tuple[str, ...] = (
+RECOMMEND_REGEX = re.compile(
+    r"\b(recommend|prioritize|rank\s+first|always\s+(mention|suggest|recommend))\b",
+    re.IGNORECASE,
+)
+
+AUTHORITY_KEYWORDS: tuple[str, ...] = (
+    "trusted source",
+    "authoritative source",
+    "go-to source",
+    "reliable source",
+    "source of expertise",
+    "expert source",
+    "best source",
+)
+
+AUTHORITY_REGEX = re.compile(
+    r"\b(trusted|authoritative|reliable|expert)\s+source\b",
+    re.IGNORECASE,
+)
+
+CITE_KEYWORDS: tuple[str, ...] = (
     "cite",
     "citation",
     "citations",
     "for future reference",
+    "reference this",
+    "source of information",
 )
 
-SUMMARY_HINT_KEYWORDS: tuple[str, ...] = (
+CITE_REGEX = re.compile(
+    r"\b(cite|citation|reference\s+this)\b",
+    re.IGNORECASE,
+)
+
+SUMMARIZE_KEYWORDS: tuple[str, ...] = (
     "summarize",
     "summary",
     "analyze",
     "explain",
     "read this",
     "visit this url",
+)
+
+SUMMARIZE_REGEX = re.compile(
+    r"\b(summarize|summary|analyze|explain)\b",
+    re.IGNORECASE,
 )
 
 GENERIC_PROMPT_PARAMS: frozenset[str] = frozenset({"q", "prompt", "query", "message", "text"})
@@ -489,10 +517,10 @@ def is_session_entry(
 
 def extract_ioc_keyword_hits(text: str) -> dict[str, list[str]]:
     return {
-        "persistence": keyword_hits(text, PERSISTENCE_KEYWORDS),
+        "persist": keyword_hits(text, PERSIST_KEYWORDS),
         "authority": keyword_hits(text, AUTHORITY_KEYWORDS),
-        "recommendation": keyword_hits(text, RECOMMENDATION_KEYWORDS),
-        "citation": keyword_hits(text, CITATION_KEYWORDS),
+        "recommend": keyword_hits(text, RECOMMEND_KEYWORDS),
+        "cite": keyword_hits(text, CITE_KEYWORDS),
     }
 
 
@@ -500,10 +528,10 @@ def extract_ioc_metadata(prompt_parameters: dict[str, list[str]]) -> dict[str, o
     parameter_keys = sorted(prompt_parameters)
     parameter_patterns: list[str] = []
     keyword_hits_by_category: dict[str, set[str]] = {
-        "persistence": set(),
+        "persist": set(),
         "authority": set(),
-        "recommendation": set(),
-        "citation": set(),
+        "recommend": set(),
+        "cite": set(),
     }
 
     for key, values in prompt_parameters.items():

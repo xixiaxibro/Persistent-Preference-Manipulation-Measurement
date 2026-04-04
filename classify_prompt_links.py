@@ -8,8 +8,8 @@ and for every row:
   2. Extracts prompt parameters with full per-platform normalization.
   3. Detects session entry and structural noise.
   4. Extracts IoC metadata across *all* prompt parameter values.
-  5. Classifies ``primary_prompt_text`` against keyword rule sets
-     (PERSISTENCE, AUTHORITY, RECOMMENDATION, CITATION, SUMMARY).
+  5. Classifies ``primary_prompt_text`` against keyword rule sets and
+     regex patterns (PERSIST, AUTHORITY, RECOMMEND, CITE, SUMMARIZE).
   6. Assigns severity (high / medium / low).
 
 Writes one enriched + classified JSONL row per input row.
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import re
 import sys
 import time
 from collections import Counter
@@ -32,10 +33,15 @@ from typing import Any, BinaryIO, Iterator
 from env_config import load_project_env
 from platform_signatures import (
     AUTHORITY_KEYWORDS,
-    CITATION_KEYWORDS,
-    PERSISTENCE_KEYWORDS,
-    RECOMMENDATION_KEYWORDS,
-    SUMMARY_HINT_KEYWORDS,
+    AUTHORITY_REGEX,
+    CITE_KEYWORDS,
+    CITE_REGEX,
+    PERSIST_KEYWORDS,
+    PERSIST_REGEX,
+    RECOMMEND_KEYWORDS,
+    RECOMMEND_REGEX,
+    SUMMARIZE_KEYWORDS,
+    SUMMARIZE_REGEX,
     extract_ioc_metadata,
     extract_prompt_parameters,
     flatten_prompt_parameters,
@@ -53,15 +59,15 @@ load_project_env()
 # ---------------------------------------------------------------------------
 
 LABEL_ORDER: tuple[str, ...] = (
-    "PERSISTENCE",
+    "PERSIST",
     "AUTHORITY",
-    "RECOMMENDATION",
-    "CITATION",
-    "SUMMARY",
+    "RECOMMEND",
+    "CITE",
+    "SUMMARIZE",
 )
 
 SUSPICIOUS_LABELS: frozenset[str] = frozenset(
-    {"PERSISTENCE", "AUTHORITY", "RECOMMENDATION", "CITATION"}
+    {"PERSIST", "AUTHORITY", "RECOMMEND", "CITE"}
 )
 
 # ---------------------------------------------------------------------------
@@ -119,7 +125,7 @@ def _print_progress(msg: str) -> None:
 
 def classify_prompt(text: str) -> tuple[list[str], str, dict[str, list[str]], list[str]]:
     """
-    Classify a prompt text against keyword rule sets.
+    Classify a prompt text against keyword rule sets and regex patterns.
 
     Returns:
         labels:             ordered list of matched label names
@@ -128,21 +134,35 @@ def classify_prompt(text: str) -> tuple[list[str], str, dict[str, list[str]], li
         matched_keywords:   deduplicated sorted list of all matched keywords
     """
     hits_by_label: dict[str, list[str]] = {
-        "PERSISTENCE":    keyword_hits(text, PERSISTENCE_KEYWORDS),
-        "AUTHORITY":      keyword_hits(text, AUTHORITY_KEYWORDS),
-        "RECOMMENDATION": keyword_hits(text, RECOMMENDATION_KEYWORDS),
-        "CITATION":       keyword_hits(text, CITATION_KEYWORDS),
-        "SUMMARY":        keyword_hits(text, SUMMARY_HINT_KEYWORDS),
+        "PERSIST":    keyword_hits(text, PERSIST_KEYWORDS),
+        "AUTHORITY":  keyword_hits(text, AUTHORITY_KEYWORDS),
+        "RECOMMEND":  keyword_hits(text, RECOMMEND_KEYWORDS),
+        "CITE":       keyword_hits(text, CITE_KEYWORDS),
+        "SUMMARIZE":  keyword_hits(text, SUMMARIZE_KEYWORDS),
     }
+
+    # Supplement keyword hits with regex matches.
+    regex_by_label: dict[str, re.Pattern[str]] = {
+        "PERSIST":   PERSIST_REGEX,
+        "AUTHORITY":  AUTHORITY_REGEX,
+        "RECOMMEND": RECOMMEND_REGEX,
+        "CITE":      CITE_REGEX,
+        "SUMMARIZE": SUMMARIZE_REGEX,
+    }
+    for label, pattern in regex_by_label.items():
+        if not hits_by_label[label]:
+            match = pattern.search(text)
+            if match:
+                hits_by_label[label].append(match.group(0).lower())
 
     labels = [label for label in LABEL_ORDER if hits_by_label[label]]
 
     # Severity:
-    #   high   = PERSISTENCE + at least one other suspicious label
-    #   medium = any single suspicious label
-    #   low    = summary-only or no labels
-    if "PERSISTENCE" in labels and any(
-        label in labels for label in ("AUTHORITY", "RECOMMENDATION", "CITATION")
+    #   high   = PERSIST + at least one other suspicious label
+    #   medium = any single suspicious label (RECOMMEND, AUTHORITY, CITE)
+    #   low    = SUMMARIZE-only or no labels
+    if "PERSIST" in labels and any(
+        label in labels for label in ("AUTHORITY", "RECOMMEND", "CITE")
     ):
         severity = "high"
     elif any(label in labels for label in SUSPICIOUS_LABELS):

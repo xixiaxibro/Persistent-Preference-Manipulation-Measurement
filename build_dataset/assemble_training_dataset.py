@@ -23,11 +23,11 @@ from typing import Any, Iterator
 # ---------------------------------------------------------------------------
 
 CLASS_LABELS: tuple[str, ...] = (
-    "PERSISTENCE",
+    "PERSIST",
     "AUTHORITY",
-    "RECOMMENDATION",
-    "CITATION",
-    "SUMMARY",
+    "RECOMMEND",
+    "CITE",
+    "SUMMARIZE",
 )
 
 # ---------------------------------------------------------------------------
