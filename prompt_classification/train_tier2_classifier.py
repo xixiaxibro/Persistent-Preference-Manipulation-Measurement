@@ -156,7 +156,7 @@ def tune_thresholds(
 
     thresholds: dict[str, float] = {}
     metrics: dict[str, dict[str, float]] = {}
-    candidates = np.arange(0.1, 0.91, 0.05)
+    candidates = np.arange(0.1, 0.95, 0.05)
 
     for i, label_name in enumerate(CLASS_LABELS):
         y_true = all_labels_np[:, i]

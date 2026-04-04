@@ -158,7 +158,7 @@ def build_gold_sample(
                 entry["annotator_2_labels"] = []
                 entry["resolved_labels"] = []
                 sampled_rows.append(entry)
-            added += 1
+                added += 1
         per_label_sampled[label] = added
 
     # Unlabeled stratum.
@@ -180,7 +180,7 @@ def build_gold_sample(
             entry["annotator_2_labels"] = []
             entry["resolved_labels"] = []
             sampled_rows.append(entry)
-        unlabeled_added += 1
+            unlabeled_added += 1
 
     rng.shuffle(sampled_rows)
 
