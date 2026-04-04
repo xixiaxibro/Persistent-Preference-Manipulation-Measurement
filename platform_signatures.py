@@ -190,7 +190,7 @@ AUTHORITY_KEYWORDS: tuple[str, ...] = (
 )
 
 AUTHORITY_REGEX = re.compile(
-    r"\b(trusted|authoritative|reliable|expert)\s+source\b",
+    r"\b((trusted|authoritative|reliable|expert)\s+source|source\s+of\s+expertise)\b",
     re.IGNORECASE,
 )
 

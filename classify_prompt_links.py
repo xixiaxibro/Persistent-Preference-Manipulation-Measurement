@@ -143,10 +143,10 @@ def classify_prompt(text: str) -> tuple[list[str], str, dict[str, list[str]], li
 
     # Supplement keyword hits with regex matches.
     regex_by_label: dict[str, re.Pattern[str]] = {
-        "PERSIST":   PERSIST_REGEX,
-        "AUTHORITY":  AUTHORITY_REGEX,
+        "PERSIST": PERSIST_REGEX,
+        "AUTHORITY": AUTHORITY_REGEX,
         "RECOMMEND": RECOMMEND_REGEX,
-        "CITE":      CITE_REGEX,
+        "CITE": CITE_REGEX,
         "SUMMARIZE": SUMMARIZE_REGEX,
     }
     for label, pattern in regex_by_label.items():
