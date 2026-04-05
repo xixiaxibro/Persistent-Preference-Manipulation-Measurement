@@ -44,11 +44,11 @@ from typing import Any, BinaryIO, Iterator
 # ---------------------------------------------------------------------------
 
 CLASS_LABELS: tuple[str, ...] = (
-    "PERSISTENCE",
+    "PERSIST",
     "AUTHORITY",
-    "RECOMMENDATION",
-    "CITATION",
-    "SUMMARY",
+    "RECOMMEND",
+    "CITE",
+    "SUMMARIZE",
 )
 
 # ---------------------------------------------------------------------------

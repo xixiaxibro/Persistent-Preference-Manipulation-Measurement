@@ -8,8 +8,8 @@ and for every row:
   2. Extracts prompt parameters with full per-platform normalization.
   3. Detects session entry and structural noise.
   4. Extracts IoC metadata across *all* prompt parameter values.
-  5. Classifies ``primary_prompt_text`` against keyword rule sets
-     (PERSISTENCE, AUTHORITY, RECOMMENDATION, CITATION, SUMMARY).
+  5. Classifies ``primary_prompt_text`` against keyword rule sets and
+     regex patterns (PERSIST, AUTHORITY, RECOMMEND, CITE, SUMMARIZE).
   6. Assigns severity (high / medium / low).
 
 Writes one enriched + classified JSONL row per input row.
@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import re
 import sys
 import time
 from collections import Counter
@@ -32,10 +33,15 @@ from typing import Any, BinaryIO, Iterator
 from env_config import load_project_env
 from platform_signatures import (
     AUTHORITY_KEYWORDS,
-    CITATION_KEYWORDS,
-    PERSISTENCE_KEYWORDS,
-    RECOMMENDATION_KEYWORDS,
-    SUMMARY_HINT_KEYWORDS,
+    AUTHORITY_REGEX,
+    CITE_KEYWORDS,
+    CITE_REGEX,
+    PERSIST_KEYWORDS,
+    PERSIST_REGEX,
+    RECOMMEND_KEYWORDS,
+    RECOMMEND_REGEX,
+    SUMMARIZE_KEYWORDS,
+    SUMMARIZE_REGEX,
     extract_ioc_metadata,
     extract_prompt_parameters,
     flatten_prompt_parameters,
@@ -53,15 +59,15 @@ load_project_env()
 # ---------------------------------------------------------------------------
 
 LABEL_ORDER: tuple[str, ...] = (
-    "PERSISTENCE",
+    "PERSIST",
     "AUTHORITY",
-    "RECOMMENDATION",
-    "CITATION",
-    "SUMMARY",
+    "RECOMMEND",
+    "CITE",
+    "SUMMARIZE",
 )
 
 SUSPICIOUS_LABELS: frozenset[str] = frozenset(
-    {"PERSISTENCE", "AUTHORITY", "RECOMMENDATION", "CITATION"}
+    {"PERSIST", "AUTHORITY", "RECOMMEND", "CITE"}
 )
 
 # ---------------------------------------------------------------------------
@@ -119,7 +125,7 @@ def _print_progress(msg: str) -> None:
 
 def classify_prompt(text: str) -> tuple[list[str], str, dict[str, list[str]], list[str]]:
     """
-    Classify a prompt text against keyword rule sets.
+    Classify a prompt text against keyword rule sets and regex patterns.
 
     Returns:
         labels:             ordered list of matched label names
@@ -128,21 +134,35 @@ def classify_prompt(text: str) -> tuple[list[str], str, dict[str, list[str]], li
         matched_keywords:   deduplicated sorted list of all matched keywords
     """
     hits_by_label: dict[str, list[str]] = {
-        "PERSISTENCE":    keyword_hits(text, PERSISTENCE_KEYWORDS),
-        "AUTHORITY":      keyword_hits(text, AUTHORITY_KEYWORDS),
-        "RECOMMENDATION": keyword_hits(text, RECOMMENDATION_KEYWORDS),
-        "CITATION":       keyword_hits(text, CITATION_KEYWORDS),
-        "SUMMARY":        keyword_hits(text, SUMMARY_HINT_KEYWORDS),
+        "PERSIST":    keyword_hits(text, PERSIST_KEYWORDS),
+        "AUTHORITY":  keyword_hits(text, AUTHORITY_KEYWORDS),
+        "RECOMMEND":  keyword_hits(text, RECOMMEND_KEYWORDS),
+        "CITE":       keyword_hits(text, CITE_KEYWORDS),
+        "SUMMARIZE":  keyword_hits(text, SUMMARIZE_KEYWORDS),
     }
+
+    # Supplement keyword hits with regex matches.
+    regex_by_label: dict[str, re.Pattern[str]] = {
+        "PERSIST": PERSIST_REGEX,
+        "AUTHORITY": AUTHORITY_REGEX,
+        "RECOMMEND": RECOMMEND_REGEX,
+        "CITE": CITE_REGEX,
+        "SUMMARIZE": SUMMARIZE_REGEX,
+    }
+    for label, pattern in regex_by_label.items():
+        if not hits_by_label[label]:
+            match = pattern.search(text)
+            if match:
+                hits_by_label[label].append(match.group(0).lower())
 
     labels = [label for label in LABEL_ORDER if hits_by_label[label]]
 
     # Severity:
-    #   high   = PERSISTENCE + at least one other suspicious label
-    #   medium = any single suspicious label
-    #   low    = summary-only or no labels
-    if "PERSISTENCE" in labels and any(
-        label in labels for label in ("AUTHORITY", "RECOMMENDATION", "CITATION")
+    #   high   = PERSIST + at least one other suspicious label
+    #   medium = any single suspicious label (RECOMMEND, AUTHORITY, CITE)
+    #   low    = SUMMARIZE-only or no labels
+    if "PERSIST" in labels and any(
+        label in labels for label in ("AUTHORITY", "RECOMMEND", "CITE")
     ):
         severity = "high"
     elif any(label in labels for label in SUSPICIOUS_LABELS):
@@ -156,6 +176,97 @@ def classify_prompt(text: str) -> tuple[list[str], str, dict[str, list[str]], li
         all_keywords.extend(hits_by_label[label])
 
     return labels, severity, hits_by_label, sorted(set(all_keywords))
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 integration (optional)
+# ---------------------------------------------------------------------------
+
+# Minimum text length to invoke Tier 2 (shorter texts are unlikely to
+# carry intent that Tier 1 keywords missed).
+_TIER2_MIN_TEXT_LENGTH = 10
+
+_tier2_classifier = None  # Lazily loaded.
+
+
+def _load_tier2(model_dir: str) -> Any:
+    """Lazy-load the Tier 2 classifier on first use."""
+    global _tier2_classifier
+    if _tier2_classifier is not None:
+        return _tier2_classifier
+
+    try:
+        from prompt_classification.tier2_inference import Tier2Classifier
+    except ImportError:
+        _print_progress(
+            "WARNING: Tier 2 dependencies not available. "
+            "Install prompt_classification/requirements-tier2.txt."
+        )
+        return None
+
+    _tier2_classifier = Tier2Classifier(model_dir)
+    return _tier2_classifier
+
+
+def _should_invoke_tier2(enriched: dict[str, Any]) -> bool:
+    """
+    Decide whether to invoke Tier 2 on an enriched row.
+
+    Tier 2 is invoked when:
+    1. Tier 1 assigns no labels AND text is non-empty and long enough, OR
+    2. Tier 1 assigns only SUMMARIZE (check for higher-severity intent).
+    """
+    labels = enriched.get("prompt_labels", [])
+    text = enriched.get("primary_prompt_text", "")
+    if not isinstance(text, str) or len(text.strip()) < _TIER2_MIN_TEXT_LENGTH:
+        return False
+
+    if not labels:
+        return True
+    if labels == ["SUMMARIZE"]:
+        return True
+    return False
+
+
+def apply_tier2(
+    enriched: dict[str, Any],
+    tier2: Any,
+) -> dict[str, Any]:
+    """
+    Apply Tier 2 classification to an enriched row and merge results.
+
+    Tier 2 labels are *additive* — they supplement Tier 1 labels.
+    Severity is recomputed from the merged label set.
+    """
+    text = enriched.get("primary_prompt_text", "")
+    if not isinstance(text, str) or not text.strip():
+        return enriched
+
+    tier2_labels, tier2_probs = tier2.classify_single(text)
+
+    # Merge labels (Tier 2 supplements Tier 1).
+    existing_labels = set(enriched.get("prompt_labels", []))
+    merged_labels = sorted(existing_labels | set(tier2_labels), key=lambda l: LABEL_ORDER.index(l))
+
+    # Recompute severity from merged labels.
+    if "PERSIST" in merged_labels and any(
+        label in merged_labels for label in ("AUTHORITY", "RECOMMEND", "CITE")
+    ):
+        severity = "high"
+    elif any(label in merged_labels for label in SUSPICIOUS_LABELS):
+        severity = "medium"
+    else:
+        severity = "low"
+
+    enriched["prompt_labels"] = merged_labels
+    enriched["classification"] = ";".join(merged_labels)
+    enriched["severity"] = severity
+    enriched["is_suspicious"] = any(label in SUSPICIOUS_LABELS for label in merged_labels)
+    enriched["tier2_labels"] = tier2_labels
+    enriched["tier2_probabilities"] = tier2_probs
+    enriched["classification_tier"] = "tier2"
+
+    return enriched
 
 
 # ---------------------------------------------------------------------------
@@ -228,6 +339,7 @@ def process_row(row: dict[str, Any]) -> dict[str, Any] | None:
     enriched["matched_rules"] = [label.lower() for label in prompt_labels]
     enriched["matched_keywords"] = matched_keywords
     enriched["is_suspicious"] = any(label in SUSPICIOUS_LABELS for label in prompt_labels)
+    enriched["classification_tier"] = "tier1"
 
     return enriched
 
@@ -242,6 +354,7 @@ def run_pipeline(
     *,
     include_benign: bool = False,
     progress_interval: float = 10.0,
+    tier2_model_dir: str | None = None,
 ) -> dict[str, Any]:
     """
     Single-pass enrich + classify.
@@ -249,12 +362,26 @@ def run_pipeline(
     If *include_benign* is False (default), rows with severity=="low" and
     is_suspicious==False are excluded from the output (same semantics as the
     original filter_poisoning_candidates.py).
+
+    If *tier2_model_dir* is provided, Tier 2 classification is applied as a
+    second pass on rows where Tier 1 assigns no labels (or only SUMMARIZE)
+    and the prompt text is long enough.
     """
+    # Load Tier 2 classifier if requested.
+    tier2 = None
+    if tier2_model_dir:
+        tier2 = _load_tier2(tier2_model_dir)
+        if tier2 is not None:
+            _print_progress(f"Tier 2 model loaded from: {tier2_model_dir}")
+        else:
+            _print_progress("WARNING: Tier 2 model could not be loaded; running Tier 1 only.")
+
     rows_seen = 0
     rows_written = 0
     rows_dropped_unmatched = 0
     rows_dropped_benign = 0
     rows_errored = 0
+    rows_tier2 = 0
     bytes_read = 0
 
     platform_counts: Counter[str] = Counter()
@@ -282,6 +409,11 @@ def run_pipeline(
             if enriched is None:
                 rows_dropped_unmatched += 1
                 continue
+
+            # Tier 2 optional second pass.
+            if tier2 is not None and _should_invoke_tier2(enriched):
+                enriched = apply_tier2(enriched, tier2)
+                rows_tier2 += 1
 
             # Track all rows for distribution stats (before benign filter).
             platform = enriched["target_platform"]
@@ -335,11 +467,13 @@ def run_pipeline(
         "input": str(input_path),
         "output": str(output_path),
         "include_benign": include_benign,
+        "tier2_model_dir": tier2_model_dir or "",
         "rows_seen": rows_seen,
         "rows_written": rows_written,
         "rows_dropped_unmatched": rows_dropped_unmatched,
         "rows_dropped_benign": rows_dropped_benign,
         "rows_errored": rows_errored,
+        "rows_tier2": rows_tier2,
         "rows_suspicious": sum(1 for s in severity_counts if s != "low") and rows_written or sum(
             c for s, c in severity_counts.items() if s != "low"
         ),
@@ -397,6 +531,14 @@ def parse_args() -> argparse.Namespace:
         default=10.0,
         help="Seconds between progress reports (default: 10).",
     )
+    parser.add_argument(
+        "--tier2-model-dir",
+        default=None,
+        help=(
+            "Path to Tier 2 model directory (from train_tier2_classifier.py). "
+            "If provided, Tier 2 is used as a second pass on unlabeled/SUMMARIZE-only rows."
+        ),
+    )
     return parser.parse_args()
 
 
@@ -409,6 +551,7 @@ def main() -> int:
     _print_progress(f"Input:          {input_path}")
     _print_progress(f"Output:         {output_path}")
     _print_progress(f"Include benign: {args.include_benign}")
+    _print_progress(f"Tier 2 model:   {args.tier2_model_dir or '(disabled)'}")
     _print_progress("")
 
     summary = run_pipeline(
@@ -416,6 +559,7 @@ def main() -> int:
         output_path,
         include_benign=args.include_benign,
         progress_interval=args.progress_interval,
+        tier2_model_dir=args.tier2_model_dir,
     )
 
     # ---- Final report to stderr ----
