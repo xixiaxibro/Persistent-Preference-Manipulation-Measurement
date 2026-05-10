@@ -23,16 +23,6 @@ export TRANCO_CACHE=/path/to/tranco_top1m.csv
 
 The checked-in examples are only for smoke tests and schema orientation.
 
-## License Choices
+## License
 
-No license has been selected yet.
-
-Common options:
-
-- MIT: simple permissive license; allows reuse, modification, redistribution, and commercial use with attribution and warranty disclaimer.
-- Apache-2.0: permissive license like MIT, with an explicit patent grant and more detailed compliance terms.
-- BSD-3-Clause: permissive license similar to MIT, with an added non-endorsement clause.
-- GPL-3.0: copyleft license; derivative works distributed to others generally need to remain GPL-compatible.
-- No license: default copyright applies; others have no clear permission to reuse or redistribute.
-
-For an academic reproducibility repository, MIT or Apache-2.0 are usually the lowest-friction choices. Apache-2.0 is preferable if patent language matters; MIT is shorter and simpler.
+This repository uses the MIT License. The license permits reuse, modification, redistribution, and commercial use with attribution and warranty disclaimer.

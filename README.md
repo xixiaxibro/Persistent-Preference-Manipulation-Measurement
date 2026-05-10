@@ -176,7 +176,7 @@ No paper result numbers are claimed in this README. If result numbers are added 
 
 ## License
 
-No license has been selected yet. Until a license is added, default copyright restrictions apply and external users do not receive clear reuse rights. See `docs/reproduction_notes.md` for license tradeoffs to decide before public release.
+This repository is released under the MIT License. See `LICENSE`.
 
 ## Citation / Contact
 
