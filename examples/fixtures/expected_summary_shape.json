@@ -1,0 +1,11 @@
+{
+  "run_root": "runs/demo",
+  "required_outputs": [
+    "00_collect/prompt_links.jsonl",
+    "01_filter_by_platform/prompt_links.jsonl",
+    "02_classify/classified_prompt_links.jsonl",
+    "03_source_risk/summary.json",
+    "03_target_risk/summary.json",
+    "04_cross_crawl/summary.json"
+  ]
+}

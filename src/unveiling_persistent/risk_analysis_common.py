@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Any, Iterator, TextIO
 
-from platform_signatures import extract_ioc_metadata, parse_domain
+from .platform_signatures import extract_ioc_metadata, parse_domain
 
 
 def open_text(path: Path) -> TextIO:

@@ -5,8 +5,9 @@ import argparse
 import collections
 import json
 from pathlib import Path
+from typing import Any
 
-from risk_analysis_common import (
+from .risk_analysis_common import (
     iter_jsonl_rows,
     is_risky_row,
     normalize_string,
@@ -14,7 +15,7 @@ from risk_analysis_common import (
     row_target_domain,
     row_target_platform,
 )
-from source_url_analysis_common import ensure_directory, iso_now_epoch, write_csv, write_json
+from .source_url_analysis_common import ensure_directory, iso_now_epoch, write_csv, write_json
 
 
 def parse_args() -> argparse.Namespace:

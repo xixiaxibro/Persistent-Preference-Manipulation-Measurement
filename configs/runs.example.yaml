@@ -1,18 +1,12 @@
-runs_base: /path/to/external/runs
-reports_dir: /path/to/external/reports
-tranco_cache: /path/to/tranco_top1m.csv
+runs_base: runs
+tranco_cache: tranco_top1m.csv
 
 classifier:
-  model_dir: /path/to/classifier_checkpoint
+  default: rule
+  model_dir: /path/to/external/classifier_checkpoint
   device: cpu
   batch_size: 8
 
 crawls:
-  - name: CC-MAIN-2025-51
-    run_root: /path/to/external/runs/collect_ccmain2025_51
-  - name: CC-MAIN-2026-04
-    run_root: /path/to/external/runs/collect_ccmain2026_04
-  - name: CC-MAIN-2026-08
-    run_root: /path/to/external/runs/collect_ccmain2026_08
-  - name: CC-MAIN-2026-12
-    run_root: /path/to/external/runs/collect_ccmain2026_12
+  - name: DEMO
+    run_root: runs/demo

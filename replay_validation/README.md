@@ -1,6 +1,6 @@
 # Replay Validation
 
-Replay validation is intentionally left as a placeholder in this cleanup pass.
+Replay validation is intentionally left as a placeholder in this public artifact.
 
 The expected future scope is:
 
@@ -9,4 +9,4 @@ The expected future scope is:
 - replay selected target-platform interactions
 - aggregate validation outcomes
 
-Do not commit full replay traces, screenshots, browser profiles, credentials, or platform session data.
+Do not commit replay traces, screenshots, browser profiles, credentials, or platform session data.

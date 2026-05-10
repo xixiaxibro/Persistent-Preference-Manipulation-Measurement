@@ -1,0 +1,4 @@
+{
+  "note": "The public artifact uses built-in platform signatures in src/unveiling_persistent/platform_signatures.py.",
+  "example_platforms": ["chatgpt", "claude", "perplexity", "gemini", "grok"]
+}

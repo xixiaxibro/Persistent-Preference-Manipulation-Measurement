@@ -25,7 +25,7 @@ from typing import Any, Iterator
 from urllib import request
 from urllib.parse import parse_qs, urlparse
 
-from env_config import load_project_env
+from .env_config import load_project_env
 
 load_project_env()
 
@@ -78,6 +78,19 @@ def iter_local_wat_paths(path: Path) -> Iterator[str]:
             line = line.strip()
             if line:
                 yield line
+
+
+def _path_to_url(item: str, *, base_dir: Path | None = None) -> str:
+    if item.startswith("http://") or item.startswith("https://") or item.startswith("file://"):
+        return item
+
+    candidate = Path(item)
+    if not candidate.is_absolute() and base_dir is not None:
+        candidate = base_dir / candidate
+    if candidate.exists():
+        return candidate.resolve().as_uri()
+
+    return f"{COMMON_CRAWL_DATA_ROOT}/{item.lstrip('/')}"
 
 
 def _safe_get_link_target(link_record: dict[str, Any]) -> str:
@@ -282,6 +295,12 @@ def process_one_wat(
     worker_id: int,
     stats_q: multiprocessing.Queue,
 ) -> list[dict[str, Any]]:
+    parsed_wat_url = urlparse(wat_url)
+    if parsed_wat_url.scheme == "file":
+        local_path = Path(request.url2pathname(parsed_wat_url.path))
+        if local_path.suffix in {".jsonl", ".json"}:
+            return process_synthetic_wat_fixture(local_path, crawl, wat_url, worker_id, stats_q)
+
     _require_warcio()
     stats_q.put(("start", worker_id, wat_url))
 
@@ -340,6 +359,63 @@ def process_one_wat(
         pass
 
     dl.join(timeout=30)
+    stats_q.put(("done", worker_id, len(candidates), pages, links))
+    return candidates
+
+
+def process_synthetic_wat_fixture(
+    path: Path,
+    crawl: str,
+    wat_url: str,
+    worker_id: int,
+    stats_q: multiprocessing.Queue,
+) -> list[dict[str, Any]]:
+    stats_q.put(("start", worker_id, wat_url))
+    candidates: list[dict[str, Any]] = []
+    pages = 0
+    links = 0
+
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt", encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                payload = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(payload, dict):
+                continue
+
+            source_url = str(payload.get("source_url") or payload.get("url") or "").strip()
+            raw_links = payload.get("links", [])
+            if not source_url or not isinstance(raw_links, list):
+                continue
+
+            pages += 1
+            links += len(raw_links)
+            for link_record in raw_links:
+                if not isinstance(link_record, dict):
+                    continue
+                target_url = _safe_get_link_target(link_record)
+                if not target_url:
+                    continue
+                prompt_parameters = extract_prompt_parameters(target_url)
+                if not prompt_parameters:
+                    continue
+                candidates.append(
+                    {
+                        "crawl": crawl,
+                        "wat_file": wat_url,
+                        "source_url": source_url,
+                        "target_url": target_url,
+                        "anchor_text": _safe_get_anchor_text(link_record),
+                        "link_path": link_record.get("path", ""),
+                        "prompt_parameters": prompt_parameters,
+                    }
+                )
+
     stats_q.put(("done", worker_id, len(candidates), pages, links))
     return candidates
 
@@ -633,19 +709,16 @@ def parse_args() -> argparse.Namespace:
 
 def _resolve_wat_urls(args: argparse.Namespace) -> list[str]:
     if args.paths_file:
-        raw_paths = list(iter_local_wat_paths(Path(args.paths_file)))
+        paths_file = Path(args.paths_file)
+        raw_paths = list(iter_local_wat_paths(paths_file))
+        base_dir = paths_file.resolve().parent
     else:
         if not args.crawl:
             raise ValueError("Either --crawl or --paths-file is required.")
         raw_paths = load_wat_paths(args.crawl, paths_url=args.paths_url)
+        base_dir = None
 
-    wat_urls = []
-    for item in raw_paths:
-        if item.startswith("http://") or item.startswith("https://"):
-            wat_urls.append(item)
-        else:
-            wat_urls.append(f"{COMMON_CRAWL_DATA_ROOT}/{item.lstrip('/')}")
-    return wat_urls
+    return [_path_to_url(item, base_dir=base_dir) for item in raw_paths]
 
 
 def main() -> int:

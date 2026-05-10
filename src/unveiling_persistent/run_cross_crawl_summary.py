@@ -10,10 +10,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from risk_analysis_common import resolve_classified_input
-from source_url_analysis_common import ensure_directory, iso_now_epoch, write_csv, write_json
+from .risk_analysis_common import resolve_classified_input
+from .source_url_analysis_common import ensure_directory, iso_now_epoch, write_csv, write_json
 
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_RUNS_BASE = Path(os.environ.get("RUNS_BASE") or os.environ.get("ARTIFACT_ROOT") or PROJECT_ROOT / "runs")
 
 DEFAULT_RUNS: tuple[tuple[str, str], ...] = (
@@ -22,7 +22,7 @@ DEFAULT_RUNS: tuple[tuple[str, str], ...] = (
     ("CC-MAIN-2026-08", str(DEFAULT_RUNS_BASE / "collect_ccmain2026_08")),
     ("CC-MAIN-2026-12", str(DEFAULT_RUNS_BASE / "collect_ccmain2026_12")),
 )
-DEFAULT_COMPARISON_ROOT = str(DEFAULT_RUNS_BASE / "simplified_risk_analysis")
+DEFAULT_COMPARISON_ROOT = str(DEFAULT_RUNS_BASE / "04_cross_crawl")
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -82,7 +82,7 @@ def _resolve_run_specs(args: argparse.Namespace) -> list[dict[str, Any]]:
 
 
 def parse_args() -> argparse.Namespace:
-    script_dir = Path(__file__).resolve().parent
+    script_dir = Path(__file__).resolve().parents[2] / "scripts"
     parser = argparse.ArgumentParser(
         description="Run simplified medium/high-risk source and target analysis across completed Stage 02 runs."
     )
@@ -96,12 +96,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--source-output-dirname",
-        default="03_source_url_analysis",
+        default="03_source_risk",
         help="Per-crawl simplified source output directory name.",
     )
     parser.add_argument(
         "--target-output-dirname",
-        default="03b_target_analysis",
+        default="03_target_risk",
         help="Per-crawl simplified target output directory name.",
     )
     parser.add_argument("--source-top-n", type=int, default=200, help="Top-N source domains for review output.")
@@ -262,7 +262,7 @@ def main() -> int:
 
     summary = {
         "generated_at_epoch": iso_now_epoch(),
-        "script": "run_simplified_risk_analysis.py",
+        "script": "run_cross_crawl_summary.py",
         "crawl_count": len(run_specs),
         "comparison_root": str(comparison_root),
         "runs": [

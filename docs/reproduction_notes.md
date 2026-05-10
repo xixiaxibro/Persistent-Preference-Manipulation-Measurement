@@ -1,28 +1,32 @@
 # Reproduction Notes
 
-## Requirements
+## Demo Reproduction
 
-Full reproduction requires:
-
-- access to Common Crawl WAT path listings
-- external storage for per-crawl JSONL outputs
-- a compatible semantic classifier checkpoint
-- a Tranco cache or network access for downloading one
-- enough CPU/GPU capacity for classifier inference
-
-## Configuration
-
-Recommended environment variables:
+The demo uses synthetic fixture data:
 
 ```bash
-export RUNS_BASE=/path/to/external/runs
-export MODEL_DIR=/path/to/classifier_checkpoint
-export REPORTS_DIR=/path/to/external/reports
-export TRANCO_CACHE=/path/to/tranco_top1m.csv
+python scripts/run_pipeline.py \
+  --config configs/runs.example.yaml \
+  --run-id demo \
+  --crawl DEMO \
+  --paths-file examples/fixtures/demo_wat.paths \
+  --classifier rule \
+  --overwrite
 ```
 
-The checked-in examples are only for smoke tests and schema orientation.
+This validates stage wiring, schemas, and output directories.
+
+## Paper-Scale Reproduction
+
+Paper-scale reproduction additionally requires:
+
+- Common Crawl WAT access
+- external storage for run outputs
+- the semantic classifier checkpoint, if reproducing model-based labels
+- optional Tranco cache for source-domain ranking
+
+The default `rule` classifier is for public smoke tests, not for reproducing paper result numbers.
 
 ## License
 
-This repository uses the MIT License. The license permits reuse, modification, redistribution, and commercial use with attribution and warranty disclaimer.
+This repository uses the MIT License.

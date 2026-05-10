@@ -1,183 +1,109 @@
-# Unveiling Persistent Preference Manipulation
+# Persistent Preference Manipulation Measurement
 
-This repository contains the code for a paper reproduction pipeline that measures prompt-carrying links in Common Crawl WAT snapshots and analyzes how they target AI assistant platforms.
+This repository is a minimal, runnable artifact for a measurement pipeline over prompt-carrying links in Common Crawl WAT metadata.
 
-The repository is intended to contain code, configuration examples, documentation, and tiny examples only. Paper-scale Common Crawl artifacts, classified corpora, logs, caches, model weights, and replay results are external artifacts and must not be committed.
-
-## Pipeline Overview
-
-The main pipeline is:
+It is intentionally not a dump of the internal research workspace. It contains only the public reproduction path:
 
 ```text
-Common Crawl WAT snapshots
--> Prompt-link candidate collection
--> AI platform filtering
--> Semantic intent classification
--> Source / target / IOC risk aggregation
--> Longitudinal cross-crawl analysis
--> Template reuse, language, and source distribution analyses
--> Reverse template coverage checks
--> Replay-based validation
--> Paper tables and reports
+collect -> platform filter -> classify -> source/target risk -> cross-crawl summary
 ```
 
-The canonical per-crawl entrypoint is:
+Large Common Crawl-derived artifacts, model checkpoints, internal paper-table exports, historical experiments, replay traces, logs, and caches are not included.
 
-```bash
-./run_collect_to_analysis.sh
-```
+## Quick Start
 
-That wrapper runs:
-
-1. `collect_candidate_pages_from_wat.py`
-2. `filter_by_platform.py`
-3. `classify_prompt_links.py`
-4. `analyze_source_risk.py`
-5. `analyze_target_risk.py`
-
-## Repository Structure
-
-```text
-.
-├── README.md
-├── requirements.txt
-├── requirements-inference.txt
-├── configs/
-│   ├── runs.example.yaml
-│   └── thresholds.example.json
-├── docs/
-│   ├── artifact_policy.md
-│   ├── pipeline_overview.md
-│   └── reproduction_notes.md
-├── examples/
-│   ├── sample_classified_prompt_links.jsonl
-│   ├── sample_prompt_links.jsonl
-│   └── sample_replay_manifest.csv
-├── replay_validation/
-│   └── README.md
-├── run_collect_to_analysis.sh
-└── *.py
-```
-
-The Python scripts remain at repository root in this low-risk cleanup pass to avoid changing import paths. A later refactor can move reusable modules under `src/` and command-line entrypoints under `scripts/`.
-
-## Installation
+Run the synthetic end-to-end demo:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python3 -m pip install -r requirements.txt -r requirements-inference.txt
+python3 -m pip install -r requirements.txt
+
+python scripts/run_pipeline.py \
+  --config configs/runs.example.yaml \
+  --run-id demo \
+  --crawl DEMO \
+  --paths-file examples/fixtures/demo_wat.paths \
+  --classifier rule \
+  --overwrite
 ```
 
-The semantic classifier requires a compatible local model directory containing:
+The demo writes:
 
 ```text
-MODEL_DIR/
-├── thresholds.json
-└── model/
+runs/demo/
+├── 00_collect/prompt_links.jsonl
+├── 01_filter_by_platform/prompt_links.jsonl
+├── 02_classify/classified_prompt_links.jsonl
+├── 03_source_risk/
+├── 03_target_risk/
+└── 04_cross_crawl/
 ```
 
-Model weights are not included in this repository.
-
-## Configuration
-
-All paper-scale outputs should be written outside the git working tree.
-
-Common environment variables:
-
-```bash
-export RUNS_BASE=/path/to/external/runs
-export MODEL_DIR=/path/to/classifier_checkpoint
-export REPORTS_DIR=/path/to/external/reports
-export TRANCO_CACHE=/path/to/tranco_top1m.csv
-```
-
-`ARTIFACT_ROOT` may be used as an alias for `RUNS_BASE`. See `configs/runs.example.yaml` for an example multi-crawl configuration.
-
-## Running the Per-Crawl Pipeline
-
-```bash
-RUN_ID=collect_ccmain2026_12 \
-CRAWL=CC-MAIN-2026-12 \
-RUNS_BASE=/path/to/external/runs \
-MODEL_DIR=/path/to/classifier_checkpoint \
-CLASSIFY_DEVICE=cpu \
-./run_collect_to_analysis.sh
-```
-
-The wrapper writes stage outputs under:
+## Repository Layout
 
 ```text
-$RUNS_BASE/$RUN_ID/
-├── 00_collect/
-├── 01_filter_by_platform/
-├── 02_classify/
-├── 03_source_url_analysis/
-└── 03b_target_analysis/
+src/unveiling_persistent/   reusable pipeline modules
+scripts/                    command-line entrypoints
+configs/                    example configuration files
+examples/fixtures/          synthetic smoke-test inputs and expected shape
+examples/                   tiny schema examples
+docs/                       artifact and reproduction notes
+replay_validation/          placeholder only; replay is not public yet
+paper/                      lightweight paper-facing notes only
 ```
 
-Resume from an existing stage by setting `START_STAGE` and `END_STAGE`.
+## Classifiers
 
-## Running Cross-Crawl Risk Analysis
+The public artifact has two classifier modes:
 
-After multiple per-crawl run roots have completed Stage 02 and risk analysis:
+- `rule`: deterministic default classifier for demos, smoke tests, and artifact review. It requires no model weights.
+- `semantic`: optional compatibility mode for an external semantic classifier checkpoint. Use `--classifier semantic --model-dir /path/to/checkpoint` and install `requirements-inference.txt`.
+
+Model weights and tokenizer files are intentionally excluded from git.
+
+## Running on Common Crawl
+
+For a real crawl, point the pipeline at external artifact storage:
 
 ```bash
 RUNS_BASE=/path/to/external/runs \
-python3 run_simplified_risk_analysis.py
+python scripts/run_pipeline.py \
+  --run-id collect_ccmain2026_12 \
+  --crawl CC-MAIN-2026-12 \
+  --classifier semantic \
+  --model-dir /path/to/external/checkpoint \
+  --workers 20
 ```
 
-You can override run roots explicitly with repeated `--run-root` and matching `--crawl-name` arguments.
+If you already have a local `wat.paths` file, pass `--paths-file /path/to/wat.paths`.
 
-## Template Reuse, Language, and Source Distribution
+## Individual Stages
+
+Each stage can also be run directly:
 
 ```bash
-RUNS_BASE=/path/to/external/runs python3 run_template_reuse_analysis.py
-RUNS_BASE=/path/to/external/runs python3 run_prompt_language_analysis.py
-RUNS_BASE=/path/to/external/runs python3 run_source_distribution_analysis.py
+python scripts/collect_candidate_pages_from_wat.py --crawl CC-MAIN-2026-12 --output runs/demo/00_collect/prompt_links.jsonl
+python scripts/filter_by_platform.py --input runs/demo/00_collect/prompt_links.jsonl --output runs/demo/01_filter_by_platform/prompt_links.jsonl
+python scripts/classify_prompt_links.py --classifier rule --input runs/demo/01_filter_by_platform/prompt_links.jsonl --output runs/demo/02_classify/classified_prompt_links.jsonl --include-benign
+python scripts/analyze_source_risk.py --input runs/demo/02_classify/classified_prompt_links.jsonl --output-dir runs/demo/03_source_risk
+python scripts/analyze_target_risk.py --input runs/demo/02_classify/classified_prompt_links.jsonl --output-dir runs/demo/03_target_risk
+python scripts/run_cross_crawl_summary.py --run-root runs/demo --crawl-name DEMO --comparison-root runs/demo/04_cross_crawl --allow-existing-output
 ```
 
-These scripts read classified per-crawl outputs and write derived tables/reports to external artifact directories.
+## What Is Not Included
 
-## Reverse Template Coverage
+The public repository excludes:
 
-Use:
-
-```bash
-python3 measure_citemet_default.py --help
-python3 measure_citemet_reference_templates.py --help
-```
-
-Full coverage tables are generated artifacts and are not tracked in git.
-
-## Replay Validation
-
-Replay validation is reserved for a separate component. The repository currently keeps `replay_validation/README.md` as a placeholder and `examples/sample_replay_manifest.csv` as a toy manifest shape.
-
-## Data and Artifact Policy
-
-Do not commit:
-
-- Common Crawl-derived JSONL corpora
-- full classified corpora
-- full risk tables and paper result tables
-- replay result dumps
-- logs, caches, temporary outputs
-- model checkpoints or tokenizer files
-- `.env`, tokens, credentials, or private absolute paths
+- full Common Crawl-derived JSONL outputs
+- full classified corpora and risk tables
+- model checkpoints and tokenizer files
+- internal exploratory scripts for template reuse, language/source distribution, paper-table export, and historical training workflows
+- replay validation implementation and replay traces
+- `.env`, credentials, logs, caches, and private server paths
 
 See `docs/artifact_policy.md`.
-
-## Limitations
-
-This repository provides the code path and small examples. Reproducing paper-scale results requires external storage, Common Crawl access, a compatible semantic classifier checkpoint, and separately managed artifacts.
-
-No paper result numbers are claimed in this README. If result numbers are added later, cite the exact artifact path, command, and generation date.
 
 ## License
 
 This repository is released under the MIT License. See `LICENSE`.
-
-## Citation / Contact
-
-Citation and contact information will be added after paper metadata is finalized.

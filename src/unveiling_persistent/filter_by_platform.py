@@ -42,8 +42,8 @@ from collections import Counter
 from pathlib import Path
 from typing import BinaryIO
 
-from env_config import load_project_env
-from platform_signatures import (
+from .env_config import load_project_env
+from .platform_signatures import (
     PLATFORM_SIGNATURES,
     PlatformSignature,
     match_platform_with_exclusion,

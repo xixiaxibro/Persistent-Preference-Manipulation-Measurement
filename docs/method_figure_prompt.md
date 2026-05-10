@@ -1,18 +1,14 @@
 # Method Figure Prompt
 
-Use this outline when drawing the paper pipeline figure:
+Draw the public artifact as a six-stage pipeline:
 
 ```text
-Common Crawl WAT snapshots
-  -> prompt-link candidate collection
+WAT metadata
+  -> prompt-link collection
   -> AI platform filter
-  -> semantic intent classifier
-  -> source / target / IOC risk aggregation
-  -> longitudinal cross-crawl analysis
-  -> template reuse, language, and source distribution analyses
-  -> reverse template coverage
-  -> replay validation
-  -> paper tables and reports
+  -> prompt classification
+  -> source/target risk aggregation
+  -> cross-crawl summary
 ```
 
-The figure should distinguish code stages from external artifacts. External artifacts include raw Common Crawl-derived JSONL files, classified corpora, model checkpoints, and generated result tables.
+Use a side note for external artifacts: Common Crawl data, semantic model checkpoint, full paper-scale outputs, and replay validation traces.

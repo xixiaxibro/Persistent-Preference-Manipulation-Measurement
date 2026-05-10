@@ -1,25 +1,15 @@
 # Artifact Policy
 
-The GitHub repository should contain only:
+This repository contains only the minimal runnable measurement pipeline, documentation, configuration examples, and tiny synthetic fixtures.
 
-- source code
-- documentation
-- configuration examples
-- tiny synthetic examples
-- paper-facing notes that do not include large raw outputs
+Do not commit:
 
-The following must remain outside git:
-
-- Common Crawl-derived JSONL files
-- full filtered prompt-link corpora
-- full classified corpora
+- Common Crawl-derived JSONL corpora
+- full filtered or classified prompt-link outputs
 - full source/target risk tables
-- full template, language, source-distribution, and coverage outputs
-- replay result dumps
-- logs, caches, temporary files, and local benchmark outputs
-- model weights, tokenizer files, checkpoints, and generated model packages
-- `.env`, API keys, tokens, credentials, and private absolute paths
+- paper-table exports and internal downstream reports
+- model checkpoints, tokenizer files, and generated model packages
+- replay traces, screenshots, browser profiles, or platform session data
+- `.env`, API keys, tokens, credentials, logs, caches, and private paths
 
-Use external artifact storage and point scripts to it with `RUNS_BASE` or `ARTIFACT_ROOT`.
-
-Small examples in `examples/` are synthetic and are not paper evidence.
+Internal analyses such as template reuse, language distribution, source distribution, reverse template coverage, and paper-table export should be documented in the paper or supplementary notes, but they are intentionally not part of this minimal public artifact.

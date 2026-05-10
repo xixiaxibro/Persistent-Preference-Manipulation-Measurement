@@ -7,8 +7,8 @@ import json
 from pathlib import Path
 from typing import Any
 
-from risk_analysis_common import iter_jsonl_rows, is_risky_row, normalize_string, row_severity, row_source_domain, row_target_platform
-from source_url_analysis_common import (
+from .risk_analysis_common import iter_jsonl_rows, is_risky_row, normalize_string, row_severity, row_source_domain, row_target_platform
+from .source_url_analysis_common import (
     ensure_directory,
     extract_root_domain,
     iso_now_epoch,

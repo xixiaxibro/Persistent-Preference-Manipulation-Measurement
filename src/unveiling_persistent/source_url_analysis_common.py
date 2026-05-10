@@ -144,9 +144,7 @@ def load_tranco_ranking(
 
 def make_domain_extractor():
     if tldextract is None:
-        raise RuntimeError(
-            "tldextract is required for root-domain extraction. Install dependencies from requirements.txt."
-        )
+        return None
     return tldextract.TLDExtract(suffix_list_urls=None)
 
 
@@ -171,6 +169,9 @@ def extract_root_domain(value: str, extractor) -> str:
     host = extract_host(value)
     if not host:
         return ""
+    if extractor is None:
+        parts = [part for part in host.split(".") if part]
+        return ".".join(parts[-2:]).lower() if len(parts) >= 2 else host
     extracted = extractor(host)
     if extracted.domain and extracted.suffix:
         return f"{extracted.domain}.{extracted.suffix}".lower()

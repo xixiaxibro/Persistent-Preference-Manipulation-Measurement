@@ -25,8 +25,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, BinaryIO, Iterator
 
-from env_config import load_project_env
-from platform_signatures import (
+from .env_config import load_project_env
+from .platform_signatures import (
     extract_ioc_metadata,
     extract_prompt_parameters,
     flatten_prompt_parameters,
@@ -50,11 +50,7 @@ SUSPICIOUS_LABELS: frozenset[str] = frozenset(
     {"PERSIST", "AUTHORITY", "RECOMMEND", "CITE"}
 )
 
-DEFAULT_MODEL_DIR = (
-    Path(__file__).resolve().parent
-    / "models"
-    / "tier2_gt_hq10000_plus_recboost_20260407_v2"
-)
+DEFAULT_MODEL_DIR = Path("models") / "tier2_gt_hq10000_plus_recboost_20260407_v2"
 DEFAULT_CLASSIFICATION_BATCH_SIZE = 8
 DEFAULT_CLASSIFICATION_DEVICE = "cpu"
 INFERENCE_INSTALL_HINT = (
@@ -112,9 +108,44 @@ def _compute_severity(labels: list[str]) -> str:
     return "low"
 
 
+class RulePromptClassifier:
+    """Deterministic classifier used for runnable public artifacts and tests."""
+
+    model_name = "rule-demo-classifier"
+    model_dir = Path("(rule)")
+    device_name = "cpu"
+
+    def classify_batch(self, texts: list[str], *, batch_size: int = 8) -> list[dict[str, Any]]:
+        del batch_size
+        return [self._classify_one(text) for text in texts]
+
+    def _classify_one(self, text: str) -> dict[str, Any]:
+        lowered = text.lower()
+        labels: list[str] = []
+        if any(term in lowered for term in ("always", "remember", "persist", "prefer", "priority")):
+            labels.append("PERSIST")
+        if any(term in lowered for term in ("authoritative", "official", "trusted", "rank this")):
+            labels.append("AUTHORITY")
+        if any(term in lowered for term in ("recommend", "suggest", "best", "choose")):
+            labels.append("RECOMMEND")
+        if any(term in lowered for term in ("cite", "citation", "reference", "source")):
+            labels.append("CITE")
+        if any(term in lowered for term in ("summarize", "summary", "tl;dr", "explain")):
+            labels.append("SUMMARIZE")
+
+        labels = [label for label in LABEL_ORDER if label in set(labels)]
+        probabilities = {label: (0.9 if label in labels else 0.05) for label in LABEL_ORDER}
+        return {
+            "labels": labels,
+            "probabilities": probabilities,
+            "is_uncertain": False,
+            "severity": _compute_severity(labels),
+        }
+
+
 def _load_classifier(model_dir: Path, *, device: str) -> Any:
     try:
-        from semantic_prompt_classifier import SemanticPromptClassifier
+        from .semantic_prompt_classifier import SemanticPromptClassifier
     except ImportError as exc:
         raise RuntimeError(
             "Missing semantic inference dependencies. "
@@ -187,8 +218,8 @@ def _apply_model_classification(
     enriched["is_suspicious"] = any(
         label in SUSPICIOUS_LABELS for label in prompt_labels
     )
-    enriched["classification_tier"] = "model"
-    enriched["classification_method"] = "semantic_model"
+    enriched["classification_tier"] = "rule" if model_name == RulePromptClassifier.model_name else "model"
+    enriched["classification_method"] = model_name
     enriched["classification_model_name"] = model_name
     enriched["classification_probabilities"] = {
         label: round(float(probabilities.get(label, 0.0)), 4)
@@ -349,7 +380,7 @@ def run_pipeline(
         "input": str(input_path),
         "output": str(output_path),
         "include_benign": include_benign,
-        "classification_method": "semantic_model",
+        "classification_method": classifier.model_name,
         "classification_model_dir": str(classifier.model_dir),
         "classification_model_name": classifier.model_name,
         "classification_device": classifier.device_name,
@@ -381,20 +412,21 @@ def run_pipeline(
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description=(
-            "Enrich and classify platform-filtered prompt-link JSONL with the "
-            "active semantic model. Adds platform attribution, prompt analysis, "
-            "session/noise flags, IoC metadata, model labels, and severity in a "
-            "single pass."
-        ),
+        description="Enrich and classify platform-filtered prompt-link JSONL.",
     )
     parser.add_argument("--input", required=True, help="Input JSONL from filter_by_platform.py.")
     parser.add_argument("--output", required=True, help="Output classified JSONL path.")
     parser.add_argument(
+        "--classifier",
+        choices=("rule", "semantic"),
+        default="rule",
+        help="Classifier backend. The default rule backend is deterministic and needs no model weights.",
+    )
+    parser.add_argument(
         "--model-dir",
         default=str(DEFAULT_MODEL_DIR),
         help=(
-            "Path to the active semantic model directory. "
+            "Path to a semantic model directory. Required only with --classifier semantic. "
             f"Default: {DEFAULT_MODEL_DIR}"
         ),
     )
@@ -438,7 +470,7 @@ def main() -> int:
     if not input_path.exists():
         print(f"Error: input file does not exist: {input_path}", file=sys.stderr)
         return 1
-    if not model_dir.exists():
+    if args.classifier == "semantic" and not model_dir.exists():
         print(f"Error: model directory does not exist: {model_dir}", file=sys.stderr)
         print(
             f"Install runtime dependencies with: {INFERENCE_INSTALL_HINT}",
@@ -449,14 +481,16 @@ def main() -> int:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        classifier = _load_classifier(model_dir, device=args.device)
+        classifier = RulePromptClassifier() if args.classifier == "rule" else _load_classifier(model_dir, device=args.device)
     except RuntimeError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     _print_progress(f"Input:          {input_path}")
     _print_progress(f"Output:         {output_path}")
-    _print_progress(f"Model dir:      {model_dir}")
+    _print_progress(f"Classifier:     {args.classifier}")
+    if args.classifier == "semantic":
+        _print_progress(f"Model dir:      {model_dir}")
     _print_progress(f"Model name:     {classifier.model_name}")
     _print_progress(f"Device:         {classifier.device_name}")
     _print_progress(f"Batch size:     {args.batch_size}")
