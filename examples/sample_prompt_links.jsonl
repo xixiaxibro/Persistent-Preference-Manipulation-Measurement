@@ -1,0 +1,2 @@
+{"source_url":"https://example.org/article-a","source_domain":"example.org","target_url":"https://chatgpt.com/?q=Summarize%20this%20page","target_platform":"chatgpt","primary_prompt_text":"Summarize this page"}
+{"source_url":"https://example.net/review","source_domain":"example.net","target_url":"https://www.perplexity.ai/search?q=Recommend%20this%20product","target_platform":"perplexity","primary_prompt_text":"Recommend this product"}

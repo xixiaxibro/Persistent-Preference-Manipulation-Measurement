@@ -1,4 +1,11 @@
+# Secrets and local configuration
 .env
+.env.*
+*.secret
+*credentials*
+*token*
+
+# Python
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -7,5 +14,38 @@ __pycache__/
 .venv/
 venv/
 env/
+
+# Local/vendor caches
+.vendor/
+.cache/
+*.log
+nohup.out
+
+# Large local data and generated artifacts
+runs/
+data/
+artifacts/
+outputs/
+analysis_reports/
+models/
+checkpoints/
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+*.onnx
+tranco_top1m.csv
+
+# Generated pipeline stage outputs
+00_collect/
+01_filter_by_platform/
+02_classify/
+03_source_url_analysis/
+03b_target_analysis/
+03c_language_analysis/
+03d_template_reuse_analysis/
+04_export_prompt_dataset/
+
+# OS/editor
 .DS_Store
 Thumbs.db

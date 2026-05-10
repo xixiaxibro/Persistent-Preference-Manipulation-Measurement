@@ -1,8 +1,0 @@
-# Additional dependencies for Tier 2 classifier (Phase 2).
-# Install alongside the base requirements.txt:
-#   pip install -r requirements.txt -r prompt_classification/requirements-tier2.txt
-
-torch>=2.0.0,<3.0.0
-transformers>=4.36.0,<5.0.0
-scikit-learn>=1.3.0,<2.0.0
-numpy>=1.24.0,<3.0.0

@@ -1,0 +1,9 @@
+{
+  "thresholds": {
+    "PERSIST": 0.5,
+    "AUTHORITY": 0.5,
+    "RECOMMEND": 0.5,
+    "CITE": 0.5,
+    "SUMMARIZE": 0.5
+  }
+}

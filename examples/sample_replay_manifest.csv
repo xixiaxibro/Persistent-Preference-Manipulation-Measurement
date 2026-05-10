@@ -1,0 +1,2 @@
+case_id,source_url,target_platform,target_url,prompt_text,expected_behavior
+toy-001,https://example.org/article-a,chatgpt,https://chatgpt.com/,Summarize this page,manual_review
